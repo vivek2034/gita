@@ -5,13 +5,15 @@ import { Message, AppState, HistorySession } from './types';
 import { SUGGESTED_TOPICS, LANGUAGES } from './constants';
 import { 
   supabase, loginWithGoogle, logout, 
-  saveHistorySession, fetchHistorySessions, deleteHistorySession
+  saveHistorySession, fetchHistorySessions, deleteHistorySession,
+  isSupabaseConfigured
 } from './services/supabase';
 import { gitaService } from './services/geminiService';
 import { 
   Send, ScrollText, Menu, Loader2, History, 
   PlusCircle, Globe, LogOut, Sparkles, Share2, 
-  Mic, LogIn, User, Play, Pause, X, Trash2, MicOff
+  Mic, LogIn, User, Play, Pause, X, Trash2, MicOff,
+  AlertCircle, ExternalLink, Settings
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -30,6 +32,9 @@ const App: React.FC = () => {
   const [isAudioLoading, setIsAudioLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
 
+  // Check if API keys are configured
+  const isConfigured = !!(window as any).process?.env?.API_KEY;
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -45,6 +50,8 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!isConfigured) return;
+
     const initAuth = async () => {
       if (supabase) {
         const { data: { session } } = await supabase.auth.getSession();
@@ -84,7 +91,7 @@ const App: React.FC = () => {
       recognitionRef.current.onerror = () => setIsListening(false);
       recognitionRef.current.onend = () => setIsListening(false);
     }
-  }, []);
+  }, [isConfigured]);
 
   const handleUserUpdate = async (sbUser: any) => {
     const profile = {
@@ -265,6 +272,50 @@ const App: React.FC = () => {
     });
   };
 
+  // Setup screen if keys are missing
+  if (!isConfigured && !showSplash) {
+    return (
+      <div className="flex items-center justify-center h-screen parchment-bg p-4 md:p-8 font-inter">
+        <div className="parchment-overlay" />
+        <div className="max-w-xl w-full bg-white/60 backdrop-blur-xl p-8 md:p-12 rounded-[2rem] border border-amber-900/20 shadow-2xl relative z-10 text-center">
+          <Settings className="w-16 h-16 text-amber-900 mx-auto mb-6 animate-spin-slow" />
+          <h2 className="text-2xl md:text-3xl font-cinzel font-bold text-amber-900 mb-4">Sacred Configuration</h2>
+          <p className="text-amber-950/70 mb-8 leading-relaxed">
+            Namaste. To start your journey with Gita Sahayak, you need to provide the divine credentials in your hosting environment (Vercel).
+          </p>
+          
+          <div className="space-y-4 text-left mb-10">
+            <div className="p-4 bg-amber-900/5 rounded-2xl border border-amber-900/10 flex items-start gap-4">
+              <div className="w-8 h-8 rounded-full bg-amber-900 text-amber-100 flex items-center justify-center shrink-0 font-bold">1</div>
+              <div>
+                <p className="font-bold text-amber-950 text-sm">API_KEY</p>
+                <p className="text-[11px] text-amber-900/60 uppercase tracking-widest mt-1">Get from Google AI Studio</p>
+              </div>
+            </div>
+            <div className="p-4 bg-amber-900/5 rounded-2xl border border-amber-900/10 flex items-start gap-4">
+              <div className="w-8 h-8 rounded-full bg-amber-900 text-amber-100 flex items-center justify-center shrink-0 font-bold">2</div>
+              <div>
+                <p className="font-bold text-amber-950 text-sm">SUPABASE_URL & ANON_KEY</p>
+                <p className="text-[11px] text-amber-900/60 uppercase tracking-widest mt-1">Get from your Supabase Project</p>
+              </div>
+            </div>
+          </div>
+
+          <a 
+            href="https://aistudio.google.com/app/apikey" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full bg-amber-900 text-amber-50 py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-amber-800 transition-all shadow-lg active:scale-95 mb-4"
+          >
+            Get Gemini API Key <ExternalLink className="w-4 h-4" />
+          </a>
+          
+          <p className="text-[10px] text-amber-900/40 font-black uppercase tracking-[0.2em]">After adding these to Vercel, redeploy your app. Radhe Radhe.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen parchment-bg overflow-hidden font-inter text-sm md:text-base">
       <div className="parchment-overlay" />
@@ -317,9 +368,17 @@ const App: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <button onClick={loginWithGoogle} className="w-full flex items-center justify-center gap-2 bg-amber-900 text-amber-50 py-3 md:py-4 rounded-xl md:rounded-2xl text-[10px] md:text-xs font-bold uppercase tracking-widest hover:bg-amber-800 transition-all shadow-lg">
-                <LogIn className="w-3.5 h-3.5 md:w-4 md:h-4" /> Sign In
-              </button>
+              <div className="space-y-3">
+                {!isSupabaseConfigured() && (
+                  <div className="px-3 py-2 bg-amber-900/5 border border-amber-900/10 rounded-xl flex items-center gap-2 mb-2">
+                    <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
+                    <span className="text-[8px] font-black uppercase tracking-widest text-amber-900/40">Cloud Sync Disabled</span>
+                  </div>
+                )}
+                <button onClick={loginWithGoogle} className="w-full flex items-center justify-center gap-2 bg-amber-900 text-amber-50 py-3 md:py-4 rounded-xl md:rounded-2xl text-[10px] md:text-xs font-bold uppercase tracking-widest hover:bg-amber-800 transition-all shadow-lg">
+                  <LogIn className="w-3.5 h-3.5 md:w-4 md:h-4" /> Sign In
+                </button>
+              </div>
             )}
           </div>
         </div>

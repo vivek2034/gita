@@ -133,6 +133,14 @@
             .message-model { border-radius: 2rem; }
         }
         
+        @keyframes spin-slow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+            animation: spin-slow 12s linear infinite;
+        }
+
         ::-webkit-scrollbar { width: 4px; }
         @media (min-width: 768px) { ::-webkit-scrollbar { width: 6px; } }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -152,7 +160,6 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
 <body class="bg-[#020617]">
     <div id="splash-screen" class="parchment-bg">
@@ -164,7 +171,7 @@
             <div class="absolute w-6 h-6 md:w-8 md:h-8 border-b-4 border-r-4 border-[#8b4513] bottom-0 right-0"></div>
         </div>
         
-        <img src="image.png" alt="Divine Feather" class="peacock-feather">
+        <img src="https://api.dicebear.com/7.x/initials/svg?seed=GS&backgroundColor=ea580c" alt="Divine Icon" class="peacock-feather opacity-20">
         
         <div class="flex flex-col items-center z-20 px-4">
             <h1 class="radhe-title font-devanagari">राधे राधे</h1>
@@ -174,6 +181,5 @@
     
     <div id="root"></div>
     <script type="module" src="index.tsx"></script>
-<script type="module" src="/index.tsx"></script>
 </body>
 </html>
