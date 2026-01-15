@@ -2,41 +2,43 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { HistorySession } from "../types";
 
-/**
- * Vite requires static access to env variables.
- */
-const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (window as any).process?.env?.SUPABASE_URL || "";
-const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (window as any).process?.env?.SUPABASE_ANON_KEY || "";
-
 let supabaseInstance: SupabaseClient | null = null;
 
-// Only initialize if we have a valid URL and Key
-if (supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http')) {
-  try {
-    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true
-      }
-    });
-  } catch (e) {
-    console.error("Supabase initialization failed:", e);
+export const getSupabase = (): SupabaseClient | null => {
+  if (supabaseInstance) return supabaseInstance;
+
+  const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (window as any).process?.env?.SUPABASE_URL || "";
+  const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (window as any).process?.env?.SUPABASE_ANON_KEY || "";
+
+  if (supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http')) {
+    try {
+      supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      });
+      return supabaseInstance;
+    } catch (e) {
+      console.error("Supabase initialization failed:", e);
+    }
   }
-}
+  return null;
+};
 
-export const supabase = supabaseInstance;
-
-export const isSupabaseConfigured = () => !!supabase;
+// Export a proxy or helper to check configuration
+export const isSupabaseConfigured = () => !!getSupabase();
 
 export const loginWithGoogle = async () => {
-  if (!supabase) {
-    alert("Supabase is not configured. Please ensure you renamed your keys to VITE_... in Vercel and clicked Redeploy.");
+  const client = getSupabase();
+  if (!client) {
+    alert("Supabase is not configured. Please ensure your VITE_... keys are set in Vercel and Redeploy.");
     return;
   }
   
   try {
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await client.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
@@ -55,8 +57,9 @@ export const loginWithGoogle = async () => {
 };
 
 export const logout = async () => {
-  if (supabase) {
-    await supabase.auth.signOut();
+  const client = getSupabase();
+  if (client) {
+    await client.auth.signOut();
   }
   localStorage.removeItem("gita_history");
   window.location.reload();
@@ -68,9 +71,10 @@ export const saveHistorySession = async (userId: string, session: HistorySession
   filtered.unshift(session);
   localStorage.setItem('gita_history', JSON.stringify(filtered.slice(0, 50)));
 
-  if (supabase && userId && !userId.startsWith('guest-')) {
+  const client = getSupabase();
+  if (client && userId && !userId.startsWith('guest-')) {
     try {
-      const { error: sessionError } = await supabase
+      const { error: sessionError } = await client
         .from('sessions')
         .upsert({
           id: session.id,
@@ -80,13 +84,13 @@ export const saveHistorySession = async (userId: string, session: HistorySession
         });
 
       if (!sessionError) {
-        await supabase.from('messages').delete().eq('session_id', session.id);
-        await supabase.from('messages').insert(session.messages.map(m => ({
+        await client.from('messages').delete().eq('session_id', session.id);
+        await client.from('messages').insert(session.messages.map(m => ({
           id: m.id,
           session_id: session.id,
           role: m.role,
           text: m.text,
-          audio_data: m.audioData || null, // Ensure your DB schema has this column if you want cloud sync for audio
+          audio_data: m.audioData || null,
           timestamp: m.timestamp
         })));
       }
@@ -99,9 +103,10 @@ export const saveHistorySession = async (userId: string, session: HistorySession
 export const fetchHistorySessions = async (userId: string): Promise<HistorySession[]> => {
   let localData = JSON.parse(localStorage.getItem('gita_history') || '[]');
 
-  if (supabase && userId && !userId.startsWith('guest-')) {
+  const client = getSupabase();
+  if (client && userId && !userId.startsWith('guest-')) {
     try {
-      const { data: sessions, error } = await supabase
+      const { data: sessions, error } = await client
         .from('sessions')
         .select(`
           id, 
@@ -145,7 +150,8 @@ export const deleteHistorySession = async (userId: string, id: string) => {
   const local = JSON.parse(localStorage.getItem('gita_history') || '[]');
   localStorage.setItem('gita_history', JSON.stringify(local.filter((s: any) => s.id !== id)));
 
-  if (supabase && userId && !userId.startsWith('guest-')) {
-    await supabase.from('sessions').delete().eq('id', id);
+  const client = getSupabase();
+  if (client && userId && !userId.startsWith('guest-')) {
+    await client.from('sessions').delete().eq('id', id);
   }
 };

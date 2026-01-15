@@ -4,7 +4,7 @@ import { marked } from 'marked';
 import { Message, AppState, HistorySession } from './types';
 import { SUGGESTED_TOPICS, LANGUAGES } from './constants';
 import { 
-  supabase, loginWithGoogle, logout, 
+  getSupabase, loginWithGoogle, logout, 
   saveHistorySession, fetchHistorySessions, deleteHistorySession,
   isSupabaseConfigured
 } from './services/supabase';
@@ -14,7 +14,7 @@ import {
   PlusCircle, Globe, LogOut, Sparkles, Share2, 
   Mic, LogIn, User, Play, Pause, X, Trash2, MicOff,
   AlertCircle, ExternalLink, Settings, ShieldCheck, ShieldAlert,
-  Volume2
+  Volume2, Compass
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -32,8 +32,9 @@ const App: React.FC = () => {
   const [isSpeaking, setIsSpeaking] = useState<string | null>(null);
   const [isAudioLoading, setIsAudioLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  // Check if API keys are configured
+  // Check if API keys are configured (checks polyfilled window.process.env)
   const isConfigured = !!((window as any).process?.env?.API_KEY && (window as any).process?.env?.SUPABASE_URL);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -42,6 +43,10 @@ const App: React.FC = () => {
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
+    // Detect if we are in an OAuth redirect hash to keep loader visible
+    const hasHash = window.location.hash.includes('access_token');
+    if (hasHash) setIsAuthLoading(true);
+
     const timer = setTimeout(() => {
       const splash = document.getElementById('splash-screen');
       if (splash) splash.classList.add('hidden');
@@ -51,32 +56,41 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // We allow initialization even if not fully configured to show the "Sacred Configuration" screen properly
     const initAuth = async () => {
-      if (supabase) {
+      const client = getSupabase();
+      if (client) {
         try {
-          const { data: { session } } = await supabase.auth.getSession();
+          const { data: { session } } = await client.auth.getSession();
           if (session?.user) {
-            handleUserUpdate(session.user);
+            await handleUserUpdate(session.user);
           } else {
-            handleGuestMode();
+            await handleGuestMode();
           }
 
-          const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+          const { data: { subscription } } = client.auth.onAuthStateChange(async (event, session) => {
+            console.debug("Auth event:", event);
             if (session?.user) {
-              handleUserUpdate(session.user);
-            } else {
-              handleGuestMode();
+              await handleUserUpdate(session.user);
+            } else if (event === 'SIGNED_OUT') {
+              await handleGuestMode();
             }
+            setIsAuthLoading(false);
           });
+
+          // If no hash and we got a session result (or lack thereof), stop loading
+          if (!window.location.hash.includes('access_token')) {
+            setIsAuthLoading(false);
+          }
 
           return () => subscription.unsubscribe();
         } catch (e) {
           console.error("Auth init error:", e);
           handleGuestMode();
+          setIsAuthLoading(false);
         }
       } else {
         handleGuestMode();
+        setIsAuthLoading(false);
       }
     };
     initAuth();
@@ -86,13 +100,11 @@ const App: React.FC = () => {
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = false;
       recognitionRef.current.interimResults = false;
-
       recognitionRef.current.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setInput(transcript);
         setIsListening(false);
       };
-
       recognitionRef.current.onerror = () => setIsListening(false);
       recognitionRef.current.onend = () => setIsListening(false);
     }
@@ -176,27 +188,22 @@ const App: React.FC = () => {
     }
     stopAudio();
 
-    // 1. Check if audio is already cached in the message
     if (msg.audioData) {
       await playAudioFromBase64(msg.audioData, msg.id);
       return;
     }
 
-    // 2. Otherwise generate and store
     setIsSpeaking(msg.id);
     setIsAudioLoading(true);
 
     try {
       const cleanedText = msg.text.replace(/\[SHLOKA\]|\[\/SHLOKA\]/g, "");
       const base64 = await gitaService.generateSpeech(cleanedText);
-      
       if (!base64) throw new Error("Divine voice interrupted");
       
-      // Update the message with audio data
       const updatedMessages = messages.map(m => m.id === msg.id ? { ...m, audioData: base64 } : m);
       setMessages(updatedMessages);
 
-      // Save to history (so it persists)
       const uid = user?.uid || "guest-user";
       if (activeSessionId) {
         const sessionToSave = historySessions.find(s => s.id === activeSessionId);
@@ -218,7 +225,6 @@ const App: React.FC = () => {
   const handleDeleteSession = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!window.confirm("Are you sure you want to delete this spiritual journey?")) return;
-    
     const uid = user?.uid || "guest-user";
     await deleteHistorySession(uid, id);
     setHistorySessions(prev => prev.filter(s => s.id !== id));
@@ -254,11 +260,9 @@ const App: React.FC = () => {
 
       const botMsgId = (Date.now() + 1).toString();
       let botText = "";
-      
       setMessages(prev => [...prev, { id: botMsgId, role: 'model', text: "", timestamp: Date.now() }]);
 
       const stream = gitaService.getGuidanceStream(text.trim(), language, history);
-      
       for await (const chunk of stream) {
         botText += chunk;
         setMessages(prev => prev.map(m => m.id === botMsgId ? { ...m, text: botText } : m));
@@ -303,6 +307,18 @@ const App: React.FC = () => {
     });
   };
 
+  // Auth Loading Screen (while parsing hash)
+  if (isAuthLoading && !showSplash) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen parchment-bg p-8 text-center font-inter">
+        <div className="parchment-overlay" />
+        <Compass className="w-16 h-16 text-amber-900 mb-6 animate-spin-slow" />
+        <h2 className="text-2xl font-cinzel font-bold text-amber-900 mb-2">Connecting to Divine Energy</h2>
+        <p className="text-amber-950/60 uppercase text-[10px] font-black tracking-[0.3em]">Authenticating your journey...</p>
+      </div>
+    );
+  }
+
   if (!isConfigured && !showSplash) {
     return (
       <div className="flex items-center justify-center h-screen parchment-bg p-4 md:p-8 font-inter">
@@ -313,7 +329,6 @@ const App: React.FC = () => {
           <p className="text-amber-950/70 mb-6 leading-relaxed">
             Namaste. To start your journey, you must add these variables to your **Vercel Dashboard** and click **Redeploy**.
           </p>
-
           <div className="bg-amber-900/5 p-4 rounded-xl border border-amber-900/10 mb-6 space-y-3">
              <div className="flex items-start gap-3">
                <ShieldCheck className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
@@ -330,7 +345,6 @@ const App: React.FC = () => {
                </div>
              </div>
           </div>
-          
           <div className="space-y-3 text-left mb-8">
             <div className="p-4 bg-amber-900/5 rounded-2xl border border-amber-900/10 flex items-center justify-between">
               <p className="font-bold text-amber-950 text-xs">VITE_API_KEY</p>
@@ -345,16 +359,9 @@ const App: React.FC = () => {
               <span className="text-[9px] text-amber-900/50 font-black">PUBLISHABLE KEY ONLY</span>
             </div>
           </div>
-
-          <a 
-            href="https://aistudio.google.com/app/apikey" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full bg-amber-900 text-amber-50 py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-amber-800 transition-all shadow-lg active:scale-95 mb-4"
-          >
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full bg-amber-900 text-amber-50 py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-amber-800 transition-all shadow-lg active:scale-95 mb-4">
             Get Gemini API Key <ExternalLink className="w-4 h-4" />
           </a>
-          
           <p className="text-[10px] text-amber-900/40 font-black uppercase tracking-[0.2em]">Redeploy your app after saving. Radhe Radhe.</p>
         </div>
       </div>
@@ -391,11 +398,7 @@ const App: React.FC = () => {
                   <History className="w-3.5 h-3.5 shrink-0" />
                   <span className="truncate pr-8">{s.title}</span>
                 </button>
-                <button 
-                  onClick={(e) => handleDeleteSession(e, s.id)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 lg:opacity-0 lg:group-hover:opacity-100 opacity-100 hover:text-red-600 transition-all text-amber-900/40"
-                  aria-label="Delete History"
-                >
+                <button onClick={(e) => handleDeleteSession(e, s.id)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 lg:opacity-0 lg:group-hover:opacity-100 opacity-100 hover:text-red-600 transition-all text-amber-900/40" aria-label="Delete History">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -439,12 +442,7 @@ const App: React.FC = () => {
                   {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
                 </select>
               </div>
-              <button 
-                onClick={handleClearCurrentChat}
-                disabled={messages.length <= 1}
-                className={`p-2 rounded-full transition-all ${messages.length > 1 ? 'text-amber-900/60 hover:text-red-600 hover:bg-red-50' : 'text-amber-900/10 cursor-not-allowed'}`}
-                title="Clear Current Chat"
-              >
+              <button onClick={handleClearCurrentChat} disabled={messages.length <= 1} className={`p-2 rounded-full transition-all ${messages.length > 1 ? 'text-amber-900/60 hover:text-red-600 hover:bg-red-50' : 'text-amber-900/10 cursor-not-allowed'}`} title="Clear Current Chat">
                 <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
               </button>
             </div>
@@ -486,11 +484,7 @@ const App: React.FC = () => {
                               {isAudioLoading && isSpeaking === m.id ? <Loader2 className="w-3 h-3 md:w-4 md:h-4 animate-spin" /> : (isSpeaking === m.id ? <Pause className="w-3 h-3 md:w-4 md:h-4 fill-current" /> : <Play className="w-3 h-3 md:w-4 md:h-4 fill-current" />)} 
                               {m.audioData && isSpeaking !== m.id ? "Listen Again" : "Listen"}
                             </button>
-                            {m.audioData && (
-                              <div className="flex items-center gap-1 text-[8px] font-black text-amber-900/20 uppercase tracking-tighter">
-                                <Volume2 className="w-2.5 h-2.5" /> Cached
-                              </div>
-                            )}
+                            {m.audioData && <div className="flex items-center gap-1 text-[8px] font-black text-amber-900/20 uppercase tracking-tighter"><Volume2 className="w-2.5 h-2.5" /> Cached</div>}
                             <button onClick={() => { navigator.clipboard.writeText(m.text) }} className="flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-amber-900/40 hover:text-amber-700 ml-auto"><Share2 className="w-3 h-3 md:w-4 md:h-4" /> Share</button>
                           </div>
                         )}
@@ -517,10 +511,7 @@ const App: React.FC = () => {
              <div className="flex items-center gap-1.5 md:gap-3 bg-white/60 backdrop-blur-md border border-amber-900/10 rounded-[1.5rem] md:rounded-[2rem] p-1.5 md:p-3 shadow-2xl focus-within:border-amber-900/30 transition-all">
                <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="Ask Krishna for guidance..." className="flex-1 bg-transparent border-none outline-none px-4 py-2 md:py-3 text-[13px] md:text-[15px] text-amber-950 placeholder-amber-900/30 font-medium" />
                <div className="flex items-center gap-2">
-                 <button 
-                  onClick={toggleListening}
-                  className={`p-2.5 md:p-4 rounded-xl md:rounded-2xl transition-all active:scale-95 ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-amber-900/10 text-amber-900 hover:bg-amber-900/20'}`}
-                 >
+                 <button onClick={toggleListening} className={`p-2.5 md:p-4 rounded-xl md:rounded-2xl transition-all active:scale-95 ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-amber-900/10 text-amber-900 hover:bg-amber-900/20'}`}>
                    {isListening ? <MicOff className="w-4 h-4 md:w-5 md:h-5" /> : <Mic className="w-4 h-4 md:w-5 md:h-5" />}
                  </button>
                  <button onClick={() => handleSend()} disabled={!input.trim() || isGenerating} className="p-2.5 md:p-4 bg-amber-900 disabled:bg-slate-300 text-amber-50 rounded-xl md:rounded-2xl hover:bg-amber-800 shadow-xl transition-all active:scale-95">

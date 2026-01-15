@@ -6,9 +6,9 @@ import App from './App';
 /**
  * Static Environment Variable Mapping
  * Vite requires static access (literal strings) to replace variables during build.
- * We also check window.process.env for compatibility with some hosting environments.
  */
 const getEnv = (key: 'API_KEY' | 'SUPABASE_URL' | 'SUPABASE_ANON_KEY'): string => {
+  // Check window.process.env first (for Vercel/production)
   const processEnv = (window as any).process?.env || {};
   
   if (key === 'API_KEY') {
@@ -26,12 +26,13 @@ const getEnv = (key: 'API_KEY' | 'SUPABASE_URL' | 'SUPABASE_ANON_KEY'): string =
   return "";
 };
 
-// Polyfill process.env for the browser
+// Polyfill process.env globally so services can access it even if imported early
 if (typeof (window as any).process === 'undefined') {
   (window as any).process = { env: {} };
 }
 
 (window as any).process.env = {
+  ...((window as any).process.env || {}),
   API_KEY: getEnv("API_KEY"),
   SUPABASE_URL: getEnv("SUPABASE_URL"),
   SUPABASE_ANON_KEY: getEnv("SUPABASE_ANON_KEY")
