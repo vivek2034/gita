@@ -9,12 +9,12 @@
   "theme_color": "#020617",
   "icons": [
     {
-      "src": "https://api.dicebear.com/7.x/initials/svg?seed=GS&backgroundColor=ea580c&size=192",
+      "src": "https://github.com/vivek2034/images/blob/main/Gemini_Generated_Image_tmc30etmc30etmc3-removebg-preview.png?raw=true",
       "sizes": "192x192",
       "type": "image/svg+xml"
     },
     {
-      "src": "https://api.dicebear.com/7.x/initials/svg?seed=GS&backgroundColor=ea580c&size=512",
+      "src": "https://github.com/vivek2034/images/blob/main/Gemini_Generated_Image_tmc30etmc30etmc3-removebg-preview.png?raw=true",
       "sizes": "512x512",
       "type": "image/svg+xml"
     }
