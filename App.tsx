@@ -13,7 +13,7 @@ import {
   Send, ScrollText, Menu, Loader2, History, 
   PlusCircle, Globe, LogOut, Sparkles, Share2, 
   Mic, LogIn, User, Play, Pause, X, Trash2, MicOff,
-  AlertCircle, ExternalLink, Settings
+  AlertCircle, ExternalLink, Settings, ShieldCheck, ShieldAlert
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -32,7 +32,6 @@ const App: React.FC = () => {
   const [isAudioLoading, setIsAudioLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
 
-  // Check if API keys are configured (checks both window.process and vite env indirectly via index.tsx)
   const isConfigured = !!((window as any).process?.env?.API_KEY && (window as any).process?.env?.SUPABASE_URL);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -272,7 +271,6 @@ const App: React.FC = () => {
     });
   };
 
-  // Setup screen if keys are missing
   if (!isConfigured && !showSplash) {
     return (
       <div className="flex items-center justify-center h-screen parchment-bg p-4 md:p-8 font-inter">
@@ -284,23 +282,35 @@ const App: React.FC = () => {
             Namaste. To start your journey, you must add these variables to your **Vercel Dashboard** and click **Redeploy**.
           </p>
 
-          <div className="bg-red-50 p-4 rounded-xl border border-red-100 mb-6">
-            <p className="text-[10px] text-red-600 font-black uppercase tracking-widest mb-2">⚠️ Important for Vite Projects</p>
-            <p className="text-xs text-red-900/70">Ensure you add the <strong>VITE_</strong> prefix in Vercel settings.</p>
+          <div className="bg-amber-900/5 p-4 rounded-xl border border-amber-900/10 mb-6 space-y-3">
+             <div className="flex items-start gap-3">
+               <ShieldCheck className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+               <div className="text-left">
+                 <p className="text-[10px] font-black uppercase text-green-700 tracking-widest">Use Publishable Key</p>
+                 <p className="text-[11px] text-amber-950/60 leading-tight">Safe for browser use. Labeled as <strong>"Publishable"</strong> or <strong>"anon"</strong> in Supabase.</p>
+               </div>
+             </div>
+             <div className="flex items-start gap-3 border-t border-amber-900/10 pt-3">
+               <ShieldAlert className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+               <div className="text-left">
+                 <p className="text-[10px] font-black uppercase text-red-700 tracking-widest">Never Use Secret Key</p>
+                 <p className="text-[11px] text-amber-950/60 leading-tight">Labeled as <strong>"Secret"</strong> or <strong>"service_role"</strong>. Never expose this.</p>
+               </div>
+             </div>
           </div>
           
           <div className="space-y-3 text-left mb-8">
             <div className="p-4 bg-amber-900/5 rounded-2xl border border-amber-900/10 flex items-center justify-between">
               <p className="font-bold text-amber-950 text-xs">VITE_API_KEY</p>
-              <span className="text-[9px] text-amber-900/50 font-black">MANDATORY</span>
+              <span className="text-[9px] text-amber-900/50 font-black">GOOGLE GEMINI</span>
             </div>
             <div className="p-4 bg-amber-900/5 rounded-2xl border border-amber-900/10 flex items-center justify-between">
               <p className="font-bold text-amber-950 text-xs">VITE_SUPABASE_URL</p>
-              <span className="text-[9px] text-amber-900/50 font-black">FOR HISTORY</span>
+              <span className="text-[9px] text-amber-900/50 font-black">PROJECT URL</span>
             </div>
             <div className="p-4 bg-amber-900/5 rounded-2xl border border-amber-900/10 flex items-center justify-between">
               <p className="font-bold text-amber-950 text-xs">VITE_SUPABASE_ANON_KEY</p>
-              <span className="text-[9px] text-amber-900/50 font-black">STARTS WITH EYJ...</span>
+              <span className="text-[9px] text-amber-900/50 font-black">PUBLISHABLE KEY ONLY</span>
             </div>
           </div>
 
