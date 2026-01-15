@@ -86,6 +86,7 @@ export const saveHistorySession = async (userId: string, session: HistorySession
           session_id: session.id,
           role: m.role,
           text: m.text,
+          audio_data: m.audioData || null, // Ensure your DB schema has this column if you want cloud sync for audio
           timestamp: m.timestamp
         })));
       }
@@ -106,7 +107,7 @@ export const fetchHistorySessions = async (userId: string): Promise<HistorySessi
           id, 
           title, 
           timestamp, 
-          messages (id, role, text, timestamp)
+          messages (id, role, text, audio_data, timestamp)
         `)
         .eq('user_id', userId)
         .order('timestamp', { ascending: false });
@@ -116,7 +117,13 @@ export const fetchHistorySessions = async (userId: string): Promise<HistorySessi
           id: s.id,
           title: s.title,
           timestamp: Number(s.timestamp),
-          messages: (s.messages || []).sort((a: any, b: any) => a.timestamp - b.timestamp)
+          messages: (s.messages || []).map((m: any) => ({
+             id: m.id,
+             role: m.role,
+             text: m.text,
+             audioData: m.audio_data,
+             timestamp: m.timestamp
+          })).sort((a: any, b: any) => a.timestamp - b.timestamp)
         }));
         
         const merged = [...remoteData];

@@ -13,7 +13,8 @@ import {
   Send, ScrollText, Menu, Loader2, History, 
   PlusCircle, Globe, LogOut, Sparkles, Share2, 
   Mic, LogIn, User, Play, Pause, X, Trash2, MicOff,
-  AlertCircle, ExternalLink, Settings, ShieldCheck, ShieldAlert
+  AlertCircle, ExternalLink, Settings, ShieldCheck, ShieldAlert,
+  Volume2
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -32,6 +33,7 @@ const App: React.FC = () => {
   const [isAudioLoading, setIsAudioLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
 
+  // Check if API keys are configured
   const isConfigured = !!((window as any).process?.env?.API_KEY && (window as any).process?.env?.SUPABASE_URL);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -44,31 +46,35 @@ const App: React.FC = () => {
       const splash = document.getElementById('splash-screen');
       if (splash) splash.classList.add('hidden');
       setTimeout(() => setShowSplash(false), 1000);
-    }, 3000);
+    }, 2000);
     return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    if (!isConfigured) return;
-
+    // We allow initialization even if not fully configured to show the "Sacred Configuration" screen properly
     const initAuth = async () => {
       if (supabase) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          handleUserUpdate(session.user);
-        } else {
-          handleGuestMode();
-        }
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
             handleUserUpdate(session.user);
           } else {
             handleGuestMode();
           }
-        });
 
-        return () => subscription.unsubscribe();
+          const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            if (session?.user) {
+              handleUserUpdate(session.user);
+            } else {
+              handleGuestMode();
+            }
+          });
+
+          return () => subscription.unsubscribe();
+        } catch (e) {
+          console.error("Auth init error:", e);
+          handleGuestMode();
+        }
       } else {
         handleGuestMode();
       }
@@ -90,7 +96,7 @@ const App: React.FC = () => {
       recognitionRef.current.onerror = () => setIsListening(false);
       recognitionRef.current.onend = () => setIsListening(false);
     }
-  }, [isConfigured]);
+  }, []);
 
   const handleUserUpdate = async (sbUser: any) => {
     const profile = {
@@ -101,7 +107,7 @@ const App: React.FC = () => {
     setUser(profile);
     const sessions = await fetchHistorySessions(profile.uid);
     setHistorySessions(sessions);
-    if (messages.length === 0 || (messages.length === 1 && messages[0].id === 'init')) {
+    if (messages.length === 0) {
       initWelcome(profile.displayName);
     }
   };
@@ -111,7 +117,7 @@ const App: React.FC = () => {
     const gid = "guest-user";
     const sessions = await fetchHistorySessions(gid);
     setHistorySessions(sessions);
-    if (messages.length === 0 || (messages.length === 1 && messages[0].id === 'init')) {
+    if (messages.length === 0) {
       initWelcome();
     }
   };
@@ -138,42 +144,68 @@ const App: React.FC = () => {
     setIsSpeaking(null);
   };
 
+  const playAudioFromBase64 = async (base64: string, msgId: string) => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+    }
+    const ctx = audioContextRef.current;
+    if (ctx.state === 'suspended') await ctx.resume();
+
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    
+    const dataInt16 = new Int16Array(bytes.buffer);
+    const buffer = ctx.createBuffer(1, dataInt16.length, 24000);
+    const channelData = buffer.getChannelData(0);
+    for (let i = 0; i < dataInt16.length; i++) channelData[i] = dataInt16[i] / 32768.0;
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    source.onended = () => setIsSpeaking(null);
+    currentSourceRef.current = source;
+    source.start();
+    setIsSpeaking(msgId);
+  };
+
   const handleSpeak = async (msg: Message) => {
     if (isSpeaking === msg.id) {
       stopAudio();
       return;
     }
     stopAudio();
+
+    // 1. Check if audio is already cached in the message
+    if (msg.audioData) {
+      await playAudioFromBase64(msg.audioData, msg.id);
+      return;
+    }
+
+    // 2. Otherwise generate and store
     setIsSpeaking(msg.id);
     setIsAudioLoading(true);
 
     try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      }
-      const ctx = audioContextRef.current;
-      if (ctx.state === 'suspended') await ctx.resume();
-
       const cleanedText = msg.text.replace(/\[SHLOKA\]|\[\/SHLOKA\]/g, "");
       const base64 = await gitaService.generateSpeech(cleanedText);
       
       if (!base64) throw new Error("Divine voice interrupted");
       
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      
-      const dataInt16 = new Int16Array(bytes.buffer);
-      const buffer = ctx.createBuffer(1, dataInt16.length, 24000);
-      const channelData = buffer.getChannelData(0);
-      for (let i = 0; i < dataInt16.length; i++) channelData[i] = dataInt16[i] / 32768.0;
+      // Update the message with audio data
+      const updatedMessages = messages.map(m => m.id === msg.id ? { ...m, audioData: base64 } : m);
+      setMessages(updatedMessages);
 
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(ctx.destination);
-      source.onended = () => setIsSpeaking(null);
-      currentSourceRef.current = source;
-      source.start();
+      // Save to history (so it persists)
+      const uid = user?.uid || "guest-user";
+      if (activeSessionId) {
+        const sessionToSave = historySessions.find(s => s.id === activeSessionId);
+        if (sessionToSave) {
+          await saveHistorySession(uid, { ...sessionToSave, messages: updatedMessages });
+        }
+      }
+
+      await playAudioFromBase64(base64, msg.id);
     } catch (e: any) {
       console.error("Audio failure:", e);
       setErrorMessage(e.message);
@@ -450,10 +482,16 @@ const App: React.FC = () => {
                         {renderText(m.text)}
                         {idx > 0 && (
                           <div className="flex items-center gap-4 md:gap-6 mt-6 md:mt-8 border-t border-amber-900/10 pt-4 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => handleSpeak(m)} className={`flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] font-black uppercase tracking-widest ${isSpeaking === m.id ? 'text-amber-700' : 'text-amber-900/40 hover:text-amber-700'}`}>
-                              {isAudioLoading && isSpeaking === m.id ? <Loader2 className="w-3 h-3 md:w-4 md:h-4 animate-spin" /> : (isSpeaking === m.id ? <Pause className="w-3 h-3 md:w-4 md:h-4 fill-current" /> : <Play className="w-3 h-3 md:w-4 md:h-4 fill-current" />)} Listen
+                            <button onClick={() => handleSpeak(m)} className={`flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] font-black uppercase tracking-widest ${isSpeaking === m.id ? 'text-amber-700 font-bold' : 'text-amber-900/40 hover:text-amber-700'}`}>
+                              {isAudioLoading && isSpeaking === m.id ? <Loader2 className="w-3 h-3 md:w-4 md:h-4 animate-spin" /> : (isSpeaking === m.id ? <Pause className="w-3 h-3 md:w-4 md:h-4 fill-current" /> : <Play className="w-3 h-3 md:w-4 md:h-4 fill-current" />)} 
+                              {m.audioData && isSpeaking !== m.id ? "Listen Again" : "Listen"}
                             </button>
-                            <button onClick={() => { navigator.clipboard.writeText(m.text) }} className="flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-amber-900/40 hover:text-amber-700"><Share2 className="w-3 h-3 md:w-4 md:h-4" /> Share</button>
+                            {m.audioData && (
+                              <div className="flex items-center gap-1 text-[8px] font-black text-amber-900/20 uppercase tracking-tighter">
+                                <Volume2 className="w-2.5 h-2.5" /> Cached
+                              </div>
+                            )}
+                            <button onClick={() => { navigator.clipboard.writeText(m.text) }} className="flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-amber-900/40 hover:text-amber-700 ml-auto"><Share2 className="w-3 h-3 md:w-4 md:h-4" /> Share</button>
                           </div>
                         )}
                       </div>

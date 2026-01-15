@@ -4,6 +4,7 @@ export interface Message {
   role: 'user' | 'model';
   text: string;
   timestamp: number;
+  audioData?: string; // Base64 PCM data
   translation?: {
     text: string;
     langCode: string;
