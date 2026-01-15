@@ -2,10 +2,12 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { HistorySession } from "../types";
 
-// Helper to safely read from process.env in various environments
+/**
+ * Helper to safely read environment variables.
+ * In production, these are injected by the build tool.
+ */
 const getEnvVar = (name: string): string => {
-  // Check browser shim first, then standard process.env
-  const env = (window as any).process?.env || (import.meta as any).env || {};
+  const env = (window as any).process?.env || {};
   return env[name] || "";
 };
 
@@ -14,6 +16,7 @@ const supabaseAnonKey = getEnvVar("SUPABASE_ANON_KEY");
 
 let supabaseInstance: SupabaseClient | null = null;
 
+// Only initialize if we have a valid URL and Key
 if (supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http')) {
   try {
     supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
@@ -30,11 +33,14 @@ if (supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http')) {
 
 export const supabase = supabaseInstance;
 
+/**
+ * Returns true if the Supabase client was successfully initialized.
+ */
 export const isSupabaseConfigured = () => !!supabase;
 
 export const loginWithGoogle = async () => {
   if (!supabase) {
-    alert("Supabase configuration not detected. Ensure SUPABASE_URL and SUPABASE_ANON_KEY are set in Vercel Environment Variables.");
+    alert("Supabase is not configured. Did you forget to Redeploy on Vercel after adding your environment variables?");
     return;
   }
   
@@ -66,13 +72,13 @@ export const logout = async () => {
 };
 
 export const saveHistorySession = async (userId: string, session: HistorySession) => {
-  // Always save to local storage first for immediate feedback/offline
+  // Local storage for offline/fast UI
   const local = JSON.parse(localStorage.getItem('gita_history') || '[]');
   const filtered = local.filter((s: any) => s.id !== session.id);
   filtered.unshift(session);
   localStorage.setItem('gita_history', JSON.stringify(filtered.slice(0, 50)));
 
-  // If logged in, sync to Supabase
+  // Cloud sync if user is authenticated
   if (supabase && userId && !userId.startsWith('guest-')) {
     try {
       const { error: sessionError } = await supabase
@@ -85,7 +91,6 @@ export const saveHistorySession = async (userId: string, session: HistorySession
         });
 
       if (!sessionError) {
-        // Clear and update messages
         await supabase.from('messages').delete().eq('session_id', session.id);
         await supabase.from('messages').insert(session.messages.map(m => ({
           id: m.id,
@@ -96,16 +101,14 @@ export const saveHistorySession = async (userId: string, session: HistorySession
         })));
       }
     } catch (e) {
-      console.warn("Supabase sync background failed (offline?)", e);
+      console.warn("Cloud sync failed (check internet connection)", e);
     }
   }
 };
 
 export const fetchHistorySessions = async (userId: string): Promise<HistorySession[]> => {
-  // Start with local storage
   let localData = JSON.parse(localStorage.getItem('gita_history') || '[]');
 
-  // If logged in, try to fetch from Supabase and merge
   if (supabase && userId && !userId.startsWith('guest-')) {
     try {
       const { data: sessions, error } = await supabase
@@ -127,7 +130,6 @@ export const fetchHistorySessions = async (userId: string): Promise<HistorySessi
           messages: (s.messages || []).sort((a: any, b: any) => a.timestamp - b.timestamp)
         }));
         
-        // Merge strategy: Unique IDs, prefer remote if available
         const merged = [...remoteData];
         localData.forEach((ls: HistorySession) => {
           if (!merged.find(rs => rs.id === ls.id)) {
@@ -137,7 +139,7 @@ export const fetchHistorySessions = async (userId: string): Promise<HistorySessi
         return merged.sort((a, b) => b.timestamp - a.timestamp);
       }
     } catch (e) {
-      console.error("Fetch history from cloud failed", e);
+      console.error("Cloud fetch failed", e);
     }
   }
   return localData;
