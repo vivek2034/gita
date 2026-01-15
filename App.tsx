@@ -32,8 +32,8 @@ const App: React.FC = () => {
   const [isAudioLoading, setIsAudioLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
 
-  // Check if API keys are configured
-  const isConfigured = !!(window as any).process?.env?.API_KEY;
+  // Check if API keys are configured (checks both window.process and vite env indirectly via index.tsx)
+  const isConfigured = !!((window as any).process?.env?.API_KEY && (window as any).process?.env?.SUPABASE_URL);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -280,24 +280,27 @@ const App: React.FC = () => {
         <div className="max-w-xl w-full bg-white/60 backdrop-blur-xl p-8 md:p-12 rounded-[2rem] border border-amber-900/20 shadow-2xl relative z-10 text-center">
           <Settings className="w-16 h-16 text-amber-900 mx-auto mb-6 animate-spin-slow" />
           <h2 className="text-2xl md:text-3xl font-cinzel font-bold text-amber-900 mb-4">Sacred Configuration</h2>
-          <p className="text-amber-950/70 mb-8 leading-relaxed">
-            Namaste. To start your journey with Gita Sahayak, you need to provide the divine credentials in your hosting environment (Vercel).
+          <p className="text-amber-950/70 mb-6 leading-relaxed">
+            Namaste. To start your journey, you must add these variables to your **Vercel Dashboard** and click **Redeploy**.
           </p>
+
+          <div className="bg-red-50 p-4 rounded-xl border border-red-100 mb-6">
+            <p className="text-[10px] text-red-600 font-black uppercase tracking-widest mb-2">⚠️ Important for Vite Projects</p>
+            <p className="text-xs text-red-900/70">Ensure you add the <strong>VITE_</strong> prefix in Vercel settings.</p>
+          </div>
           
-          <div className="space-y-4 text-left mb-10">
-            <div className="p-4 bg-amber-900/5 rounded-2xl border border-amber-900/10 flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-amber-900 text-amber-100 flex items-center justify-center shrink-0 font-bold">1</div>
-              <div>
-                <p className="font-bold text-amber-950 text-sm">API_KEY</p>
-                <p className="text-[11px] text-amber-900/60 uppercase tracking-widest mt-1">Get from Google AI Studio</p>
-              </div>
+          <div className="space-y-3 text-left mb-8">
+            <div className="p-4 bg-amber-900/5 rounded-2xl border border-amber-900/10 flex items-center justify-between">
+              <p className="font-bold text-amber-950 text-xs">VITE_API_KEY</p>
+              <span className="text-[9px] text-amber-900/50 font-black">MANDATORY</span>
             </div>
-            <div className="p-4 bg-amber-900/5 rounded-2xl border border-amber-900/10 flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-amber-900 text-amber-100 flex items-center justify-center shrink-0 font-bold">2</div>
-              <div>
-                <p className="font-bold text-amber-950 text-sm">SUPABASE_URL & ANON_KEY</p>
-                <p className="text-[11px] text-amber-900/60 uppercase tracking-widest mt-1">Get from your Supabase Project</p>
-              </div>
+            <div className="p-4 bg-amber-900/5 rounded-2xl border border-amber-900/10 flex items-center justify-between">
+              <p className="font-bold text-amber-950 text-xs">VITE_SUPABASE_URL</p>
+              <span className="text-[9px] text-amber-900/50 font-black">FOR HISTORY</span>
+            </div>
+            <div className="p-4 bg-amber-900/5 rounded-2xl border border-amber-900/10 flex items-center justify-between">
+              <p className="font-bold text-amber-950 text-xs">VITE_SUPABASE_ANON_KEY</p>
+              <span className="text-[9px] text-amber-900/50 font-black">STARTS WITH EYJ...</span>
             </div>
           </div>
 
@@ -310,7 +313,7 @@ const App: React.FC = () => {
             Get Gemini API Key <ExternalLink className="w-4 h-4" />
           </a>
           
-          <p className="text-[10px] text-amber-900/40 font-black uppercase tracking-[0.2em]">After adding these to Vercel, redeploy your app. Radhe Radhe.</p>
+          <p className="text-[10px] text-amber-900/40 font-black uppercase tracking-[0.2em]">Redeploy your app after saving. Radhe Radhe.</p>
         </div>
       </div>
     );
