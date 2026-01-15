@@ -4,16 +4,26 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 
 /**
- * Vite + Vercel Environment Variable Polyfill
- * We check both Vite's standard and the global process.env.
+ * Static Environment Variable Mapping
+ * Vite requires static access (literal strings) to replace variables during build.
+ * We also check window.process.env for compatibility with some hosting environments.
  */
-const getEnv = (key: string): string => {
-  const viteKey = `VITE_${key}`;
-  // @ts-ignore - Vite env
-  const fromVite = import.meta.env ? import.meta.env[viteKey] : undefined;
-  const fromProcess = (window as any).process?.env?.[key] || (window as any).process?.env?.[viteKey];
+const getEnv = (key: 'API_KEY' | 'SUPABASE_URL' | 'SUPABASE_ANON_KEY'): string => {
+  const processEnv = (window as any).process?.env || {};
   
-  return fromVite || fromProcess || "";
+  if (key === 'API_KEY') {
+    // @ts-ignore
+    return import.meta.env?.VITE_API_KEY || processEnv.API_KEY || processEnv.VITE_API_KEY || "";
+  }
+  if (key === 'SUPABASE_URL') {
+    // @ts-ignore
+    return import.meta.env?.VITE_SUPABASE_URL || processEnv.SUPABASE_URL || processEnv.VITE_SUPABASE_URL || "";
+  }
+  if (key === 'SUPABASE_ANON_KEY') {
+    // @ts-ignore
+    return import.meta.env?.VITE_SUPABASE_ANON_KEY || processEnv.SUPABASE_ANON_KEY || processEnv.VITE_SUPABASE_ANON_KEY || "";
+  }
+  return "";
 };
 
 // Polyfill process.env for the browser

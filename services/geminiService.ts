@@ -4,20 +4,18 @@ import { SYSTEM_INSTRUCTION } from "../constants";
 
 export class GitaService {
   /**
-   * We get the AI instance lazily to ensure that the environment 
-   * variables are fully loaded from the window context.
+   * We get the AI instance using static checks for Vite.
    */
   private getAI() {
-    const apiKey = (window as any).process?.env?.API_KEY || "";
+    // @ts-ignore
+    const apiKey = import.meta.env?.VITE_API_KEY || (window as any).process?.env?.API_KEY || "";
+    
     if (!apiKey) {
-      throw new Error("Divine connection failed: API Key is missing. Please configure it in your hosting settings.");
+      throw new Error("Divine connection failed: API Key is missing. Ensure VITE_API_KEY is set in Vercel.");
     }
     return new GoogleGenAI({ apiKey });
   }
 
-  /**
-   * Returns a streaming response directly from the Gemini SDK.
-   */
   async *getGuidanceStream(
     userPrompt: string, 
     language: string,
@@ -44,9 +42,6 @@ export class GitaService {
     }
   }
 
-  /**
-   * Generates audio using the dedicated TTS model.
-   */
   async generateSpeech(text: string): Promise<string | undefined> {
     try {
       const ai = this.getAI();

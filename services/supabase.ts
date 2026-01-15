@@ -3,16 +3,10 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { HistorySession } from "../types";
 
 /**
- * Helper to safely read environment variables.
- * In production, these are injected by the build tool.
+ * Vite requires static access to env variables.
  */
-const getEnvVar = (name: string): string => {
-  const env = (window as any).process?.env || {};
-  return env[name] || "";
-};
-
-const supabaseUrl = getEnvVar("SUPABASE_URL");
-const supabaseAnonKey = getEnvVar("SUPABASE_ANON_KEY");
+const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (window as any).process?.env?.SUPABASE_URL || "";
+const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (window as any).process?.env?.SUPABASE_ANON_KEY || "";
 
 let supabaseInstance: SupabaseClient | null = null;
 
@@ -33,14 +27,11 @@ if (supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http')) {
 
 export const supabase = supabaseInstance;
 
-/**
- * Returns true if the Supabase client was successfully initialized.
- */
 export const isSupabaseConfigured = () => !!supabase;
 
 export const loginWithGoogle = async () => {
   if (!supabase) {
-    alert("Supabase is not configured. Did you forget to Redeploy on Vercel after adding your environment variables?");
+    alert("Supabase is not configured. Please ensure you renamed your keys to VITE_... in Vercel and clicked Redeploy.");
     return;
   }
   
@@ -72,13 +63,11 @@ export const logout = async () => {
 };
 
 export const saveHistorySession = async (userId: string, session: HistorySession) => {
-  // Local storage for offline/fast UI
   const local = JSON.parse(localStorage.getItem('gita_history') || '[]');
   const filtered = local.filter((s: any) => s.id !== session.id);
   filtered.unshift(session);
   localStorage.setItem('gita_history', JSON.stringify(filtered.slice(0, 50)));
 
-  // Cloud sync if user is authenticated
   if (supabase && userId && !userId.startsWith('guest-')) {
     try {
       const { error: sessionError } = await supabase
@@ -101,7 +90,7 @@ export const saveHistorySession = async (userId: string, session: HistorySession
         })));
       }
     } catch (e) {
-      console.warn("Cloud sync failed (check internet connection)", e);
+      console.warn("Cloud sync failed", e);
     }
   }
 };
