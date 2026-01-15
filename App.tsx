@@ -330,7 +330,7 @@ const App: React.FC = () => {
         if (i % 2 === 1) {
           return (
             <div key={i} className="my-3 md:my-6 p-4 md:p-8 border-l-4 border-amber-900 bg-white/40 rounded-r-2xl text-center shadow-inner relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-2 opacity-10"><Sparkles className="w-6 h-6 md:w-8 md:h-8" /></div>
+               <div className="absolute top-0 right-0 p-2 opacity-10"><img src="https://github.com/vivek2034/images/blob/main/Vibrant%20peacock%20feather%20details.png?raw=true" className="w-6 h-6 md:w-8 md:h-8" /></div>
                <p className="font-devanagari text-base md:text-2xl text-amber-900 leading-relaxed font-bold">{p.trim()}</p>
             </div>
           );
@@ -430,7 +430,7 @@ const App: React.FC = () => {
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mt-8 md:mt-12">
                  {SUGGESTED_TOPICS.map(t => (
                    <button key={t} onClick={() => handleSend(t)} className="p-4 md:p-6 text-left bg-white/40 hover:bg-amber-900/5 border border-amber-900/10 rounded-2xl md:rounded-3xl transition-all shadow-sm hover:shadow-md active:scale-[0.98]">
-                     <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-amber-700 mb-2 md:mb-3" />
+                     <img src="https://github.com/vivek2034/images/blob/main/Vibrant%20peacock%20feather%20details.png?raw=true" className="w-4 h-4 md:w-5 md:h-5 text-amber-700 mb-2 md:mb-3" />
                      <p className="text-[13px] md:text-sm font-bold text-amber-900 leading-snug">{t}</p>
                    </button>
                  ))}
