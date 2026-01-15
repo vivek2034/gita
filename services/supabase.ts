@@ -1,6 +1,6 @@
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { HistorySession } from "../types";
+import { HistorySession, Message } from "../types";
 
 let supabaseInstance: SupabaseClient | null = null;
 
@@ -27,13 +27,12 @@ export const getSupabase = (): SupabaseClient | null => {
   return null;
 };
 
-// Export a proxy or helper to check configuration
 export const isSupabaseConfigured = () => !!getSupabase();
 
 export const loginWithGoogle = async () => {
   const client = getSupabase();
   if (!client) {
-    alert("Supabase is not configured. Please ensure your VITE_... keys are set in Vercel and Redeploy.");
+    alert("Configuration missing. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
     return;
   }
   
@@ -42,34 +41,37 @@ export const loginWithGoogle = async () => {
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'select_account',
-        },
       }
     });
     if (error) throw error;
     return data;
   } catch (err: any) {
     console.error("Login failed:", err);
-    alert("Authentication error: " + err.message);
   }
 };
 
 export const logout = async () => {
   const client = getSupabase();
-  if (client) {
-    await client.auth.signOut();
-  }
+  if (client) await client.auth.signOut();
   localStorage.removeItem("gita_history");
   window.location.reload();
 };
 
 export const saveHistorySession = async (userId: string, session: HistorySession) => {
-  const local = JSON.parse(localStorage.getItem('gita_history') || '[]');
-  const filtered = local.filter((s: any) => s.id !== session.id);
-  filtered.unshift(session);
-  localStorage.setItem('gita_history', JSON.stringify(filtered.slice(0, 50)));
+  // CRITICAL: Strip audioData from the JSON stored in localStorage to avoid QuotaExceededError
+  const strippedMessages = session.messages.map(({ audioData, ...rest }) => rest);
+  const sessionToStore = { ...session, messages: strippedMessages };
+
+  const localKey = 'gita_history';
+  try {
+    const local = JSON.parse(localStorage.getItem(localKey) || '[]');
+    const filtered = local.filter((s: any) => s.id !== session.id);
+    filtered.unshift(sessionToStore);
+    localStorage.setItem(localKey, JSON.stringify(filtered.slice(0, 30)));
+  } catch (e) {
+    console.warn("LocalStorage full, trimming history further...");
+    localStorage.setItem(localKey, JSON.stringify([sessionToStore]));
+  }
 
   const client = getSupabase();
   if (client && userId && !userId.startsWith('guest-')) {
@@ -132,7 +134,7 @@ export const fetchHistorySessions = async (userId: string): Promise<HistorySessi
         }));
         
         const merged = [...remoteData];
-        localData.forEach((ls: HistorySession) => {
+        localData.forEach((ls: any) => {
           if (!merged.find(rs => rs.id === ls.id)) {
             merged.push(ls);
           }
