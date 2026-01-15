@@ -1,0 +1,179 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gita Sahayak - Divine Wisdom</title>
+    <meta name="theme-color" content="#f4e4bc">
+    <meta name="description" content="Seek spiritual guidance from the Bhagavad Gita using advanced AI.">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="https://api.dicebear.com/7.x/initials/svg?seed=GS&backgroundColor=ea580c">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lora:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #020617;
+            margin: 0;
+            overflow: hidden;
+        }
+        .font-cinzel { font-family: 'Cinzel', serif; }
+        .font-lora { font-family: 'Lora', serif; }
+        .font-devanagari { font-family: 'Tiro Devanagari Hindi', serif; }
+        
+        .parchment-bg {
+            background-color: #fcf5e5;
+            background-image: url('https://www.transparenttextures.com/patterns/paper-fibers.png');
+            position: relative;
+        }
+
+        .parchment-overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, transparent 0%, rgba(139, 69, 19, 0.05) 100%);
+            pointer-events: none;
+        }
+
+        .divine-border {
+            position: absolute;
+            inset: 10px;
+            border: 2px solid #8b4513;
+            pointer-events: none;
+            z-index: 10;
+        }
+        @media (min-width: 768px) {
+            .divine-border { inset: 15px; }
+        }
+        
+        #splash-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 1.5s ease-in-out, visibility 1.5s;
+        }
+        #splash-screen.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .peacock-feather {
+            position: absolute;
+            right: -100px;
+            bottom: -100px;
+            width: 300px;
+            height: auto;
+            opacity: 0.5;
+            pointer-events: none;
+            filter: drop-shadow(0 20px 30px rgba(0,0,0,0.15));
+            transform: rotate(-15deg);
+            animation: feather-sway 8s ease-in-out infinite;
+        }
+        @media (min-width: 768px) {
+            .peacock-feather {
+                right: -50px;
+                bottom: -50px;
+                width: 450px;
+                opacity: 0.7;
+            }
+        }
+
+        @keyframes feather-sway {
+            0%, 100% { transform: rotate(-15deg) translate(0, 0); }
+            50% { transform: rotate(-12deg) translate(-10px, -20px); }
+        }
+
+        .radhe-title {
+            font-size: 3.5rem;
+            color: #5d2e0a;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(30px);
+            animation: fade-up 2s forwards 0.5s;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        @media (min-width: 768px) {
+            .radhe-title { font-size: 6rem; }
+        }
+
+        @keyframes fade-up {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .sub-title {
+            font-family: 'Cinzel', serif;
+            letter-spacing: 0.3em;
+            color: #8b4513;
+            opacity: 0;
+            animation: fade-in 2s forwards 1.5s;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+        @media (min-width: 768px) {
+            .sub-title { letter-spacing: 0.6em; }
+        }
+
+        @keyframes fade-in {
+            to { opacity: 0.6; }
+        }
+
+        .message-model {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(139, 69, 19, 0.1);
+            border-radius: 1.5rem;
+        }
+        @media (min-width: 768px) {
+            .message-model { border-radius: 2rem; }
+        }
+        
+        ::-webkit-scrollbar { width: 4px; }
+        @media (min-width: 768px) { ::-webkit-scrollbar { width: 6px; } }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #8b451344; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #8b451366; }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0",
+    "marked": "https://esm.sh/marked@^17.0.1",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.90.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-[#020617]">
+    <div id="splash-screen" class="parchment-bg">
+        <div class="parchment-overlay"></div>
+        <div class="divine-border">
+            <div class="absolute w-6 h-6 md:w-8 md:h-8 border-t-4 border-l-4 border-[#8b4513] top-0 left-0"></div>
+            <div class="absolute w-6 h-6 md:w-8 md:h-8 border-t-4 border-r-4 border-[#8b4513] top-0 right-0"></div>
+            <div class="absolute w-6 h-6 md:w-8 md:h-8 border-b-4 border-l-4 border-[#8b4513] bottom-0 left-0"></div>
+            <div class="absolute w-6 h-6 md:w-8 md:h-8 border-b-4 border-r-4 border-[#8b4513] bottom-0 right-0"></div>
+        </div>
+        
+        <img src="image.png" alt="Divine Feather" class="peacock-feather">
+        
+        <div class="flex flex-col items-center z-20 px-4">
+            <h1 class="radhe-title font-devanagari">राधे राधे</h1>
+            <p class="sub-title text-xs md:text-sm mt-4 text-center">Gita Sahayak</p>
+        </div>
+    </div>
+    
+    <div id="root"></div>
+    <script type="module" src="index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

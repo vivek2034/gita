@@ -1,0 +1,22 @@
+
+{
+  "name": "Gita Sahayak",
+  "short_name": "Gita AI",
+  "description": "Spiritual AI guide based on Bhagavad Gita",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "https://api.dicebear.com/7.x/initials/svg?seed=GS&backgroundColor=ea580c&size=192",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "https://api.dicebear.com/7.x/initials/svg?seed=GS&backgroundColor=ea580c&size=512",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

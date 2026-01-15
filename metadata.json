@@ -1,0 +1,8 @@
+
+{
+  "name": "Gita Sahayak - Spiritual AI Guide",
+  "description": "A spiritual advisor powered by Gemini, providing wisdom and guidance strictly based on the teachings of the Bhagavad Gita.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
