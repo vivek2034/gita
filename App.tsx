@@ -16,7 +16,7 @@ import {
   PlusCircle, Globe, LogOut, Sparkles, Share2, 
   Mic, LogIn, User, Play, Pause, X, Trash2, MicOff,
   AlertCircle, ExternalLink, Settings, ShieldCheck, ShieldAlert,
-  Volume2, Compass, CheckCircle2
+  Volume2, Compass, CheckCircle2, Check
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -36,6 +36,7 @@ const App: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [cachedAudioIds, setCachedAudioIds] = useState<Set<string>>(new Set());
+  const [sharedId, setSharedId] = useState<string | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -43,7 +44,6 @@ const App: React.FC = () => {
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
-    // Immediate check for hash
     const isRedirect = window.location.hash.includes('access_token');
     if (isRedirect) setIsAuthLoading(true);
 
@@ -84,7 +84,6 @@ const App: React.FC = () => {
           setIsAuthLoading(false);
         });
 
-        // Safety timeout to prevent infinite loader if Supabase hangs
         const timeout = setTimeout(() => setIsAuthLoading(false), 5000);
 
         return () => {
@@ -92,7 +91,6 @@ const App: React.FC = () => {
           clearTimeout(timeout);
         };
       } catch (e) {
-        console.error("Auth init failure:", e);
         await handleGuestMode();
         setIsAuthLoading(false);
       }
@@ -128,7 +126,6 @@ const App: React.FC = () => {
       setHistorySessions(sessions);
       if (messages.length === 0) initWelcome(profile.displayName);
     } catch (e) {
-      console.error("Profile update error:", e);
       handleGuestMode();
     }
   };
@@ -198,7 +195,6 @@ const App: React.FC = () => {
       source.start();
       setIsSpeaking(msgId);
     } catch (e) {
-      console.error("Audio playback error:", e);
       setIsSpeaking(null);
     }
   };
@@ -232,6 +228,31 @@ const App: React.FC = () => {
       setIsSpeaking(null);
     } finally {
       setIsAudioLoading(false);
+    }
+  };
+
+  const handleShare = async (msg: Message) => {
+    const cleanedText = msg.text.replace(/\[SHLOKA\]|\[\/SHLOKA\]/g, "").trim();
+    const shareContent = `${cleanedText}\n\n— Wisdom via Gita Sahayak\nRadhe Radhe`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Wisdom from Bhagavad Gita',
+          text: shareContent,
+          url: window.location.origin,
+        });
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') console.error("Share failed:", err);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareContent);
+        setSharedId(msg.id);
+        setTimeout(() => setSharedId(null), 2000);
+      } catch (err) {
+        console.error("Clipboard copy failed:", err);
+      }
     }
   };
 
@@ -424,13 +445,20 @@ const App: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         {renderText(m.text)}
                         {idx > 0 && (
-                          <div className="flex items-center gap-6 mt-8 border-t border-amber-900/10 pt-4 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-4 md:gap-6 mt-8 border-t border-amber-900/10 pt-4 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                             <button onClick={() => handleSpeak(m)} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-amber-900/40 hover:text-amber-700">
                               {isAudioLoading && isSpeaking === m.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (isSpeaking === m.id ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />)} 
                               {cachedAudioIds.has(m.id) ? "Listen Again" : "Listen Divine Voice"}
                             </button>
                             {cachedAudioIds.has(m.id) && <div className="flex items-center gap-1 text-[8px] font-black text-green-600/60 uppercase tracking-tighter"><CheckCircle2 className="w-2.5 h-2.5" /> Cached</div>}
-                            <button onClick={() => navigator.clipboard.writeText(m.text)} className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-amber-900/40 hover:text-amber-700 ml-auto"><Share2 className="w-4 h-4" /> Share</button>
+                            
+                            <button 
+                              onClick={() => handleShare(m)} 
+                              className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ml-auto transition-all ${sharedId === m.id ? 'text-green-600' : 'text-amber-900/40 hover:text-amber-700'}`}
+                            >
+                              {sharedId === m.id ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+                              {sharedId === m.id ? "Copied!" : "Share"}
+                            </button>
                           </div>
                         )}
                       </div>
