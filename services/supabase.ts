@@ -7,8 +7,8 @@ let supabaseInstance: SupabaseClient | null = null;
 export const getSupabase = (): SupabaseClient | null => {
   if (supabaseInstance) return supabaseInstance;
 
-  const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (window as any).process?.env?.SUPABASE_URL || "";
-  const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (window as any).process?.env?.SUPABASE_ANON_KEY || "";
+  const supabaseUrl = (window as any).process?.env?.SUPABASE_URL || "";
+  const supabaseAnonKey = (window as any).process?.env?.SUPABASE_ANON_KEY || "";
 
   if (supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http')) {
     try {
@@ -57,20 +57,31 @@ export const logout = async () => {
   window.location.reload();
 };
 
+const getSafeLocalHistory = (): any[] => {
+  try {
+    const data = localStorage.getItem('gita_history');
+    if (!data) return [];
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.warn("History corrupted, resetting...", e);
+    localStorage.removeItem('gita_history');
+    return [];
+  }
+};
+
 export const saveHistorySession = async (userId: string, session: HistorySession) => {
-  // CRITICAL: Strip audioData from the JSON stored in localStorage to avoid QuotaExceededError
   const strippedMessages = session.messages.map(({ audioData, ...rest }) => rest);
   const sessionToStore = { ...session, messages: strippedMessages };
 
-  const localKey = 'gita_history';
   try {
-    const local = JSON.parse(localStorage.getItem(localKey) || '[]');
+    const local = getSafeLocalHistory();
     const filtered = local.filter((s: any) => s.id !== session.id);
     filtered.unshift(sessionToStore);
-    localStorage.setItem(localKey, JSON.stringify(filtered.slice(0, 30)));
+    localStorage.setItem('gita_history', JSON.stringify(filtered.slice(0, 30)));
   } catch (e) {
-    console.warn("LocalStorage full, trimming history further...");
-    localStorage.setItem(localKey, JSON.stringify([sessionToStore]));
+    console.warn("Storage error, clearing space...", e);
+    localStorage.setItem('gita_history', JSON.stringify([sessionToStore]));
   }
 
   const client = getSupabase();
@@ -103,7 +114,7 @@ export const saveHistorySession = async (userId: string, session: HistorySession
 };
 
 export const fetchHistorySessions = async (userId: string): Promise<HistorySession[]> => {
-  let localData = JSON.parse(localStorage.getItem('gita_history') || '[]');
+  let localData = getSafeLocalHistory();
 
   const client = getSupabase();
   if (client && userId && !userId.startsWith('guest-')) {
@@ -149,8 +160,10 @@ export const fetchHistorySessions = async (userId: string): Promise<HistorySessi
 };
 
 export const deleteHistorySession = async (userId: string, id: string) => {
-  const local = JSON.parse(localStorage.getItem('gita_history') || '[]');
-  localStorage.setItem('gita_history', JSON.stringify(local.filter((s: any) => s.id !== id)));
+  try {
+    const local = getSafeLocalHistory();
+    localStorage.setItem('gita_history', JSON.stringify(local.filter((s: any) => s.id !== id)));
+  } catch (e) {}
 
   const client = getSupabase();
   if (client && userId && !userId.startsWith('guest-')) {
