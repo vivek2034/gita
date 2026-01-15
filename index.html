@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Gita Sahayak - Divine Wisdom</title>
     <meta name="theme-color" content="#f4e4bc">
     <meta name="description" content="Seek spiritual guidance from the Bhagavad Gita using advanced AI.">
@@ -19,6 +19,7 @@
             background: #020617;
             margin: 0;
             overflow: hidden;
+            height: 100dvh;
         }
         .font-cinzel { font-family: 'Cinzel', serif; }
         .font-lora { font-family: 'Lora', serif; }
@@ -39,7 +40,7 @@
 
         .divine-border {
             position: absolute;
-            inset: 10px;
+            inset: 8px;
             border: 2px solid #8b4513;
             pointer-events: none;
             z-index: 10;
@@ -65,11 +66,11 @@
 
         .peacock-feather {
             position: absolute;
-            right: -100px;
-            bottom: -100px;
-            width: 300px;
+            right: -50px;
+            bottom: -50px;
+            width: 240px;
             height: auto;
-            opacity: 0.5;
+            opacity: 0.3;
             pointer-events: none;
             filter: drop-shadow(0 20px 30px rgba(0,0,0,0.15));
             transform: rotate(-15deg);
@@ -86,11 +87,11 @@
 
         @keyframes feather-sway {
             0%, 100% { transform: rotate(-15deg) translate(0, 0); }
-            50% { transform: rotate(-12deg) translate(-10px, -20px); }
+            50% { transform: rotate(-12deg) translate(-5px, -10px); }
         }
 
         .radhe-title {
-            font-size: 3.5rem;
+            font-size: 3rem;
             color: #5d2e0a;
             text-align: center;
             opacity: 0;
@@ -108,7 +109,7 @@
 
         .sub-title {
             font-family: 'Cinzel', serif;
-            letter-spacing: 0.3em;
+            letter-spacing: 0.2em;
             color: #8b4513;
             opacity: 0;
             animation: fade-in 2s forwards 1.5s;
@@ -127,7 +128,7 @@
             background: rgba(255, 255, 255, 0.4);
             backdrop-filter: blur(8px);
             border: 1px solid rgba(139, 69, 19, 0.1);
-            border-radius: 1.5rem;
+            border-radius: 1.25rem;
         }
         @media (min-width: 768px) {
             .message-model { border-radius: 2rem; }
@@ -171,11 +172,11 @@
             <div class="absolute w-6 h-6 md:w-8 md:h-8 border-b-4 border-r-4 border-[#8b4513] bottom-0 right-0"></div>
         </div>
         
-        <img src="https://api.dicebear.com/7.x/initials/svg?seed=GS&backgroundColor=ea580c" alt="Divine Icon" class="peacock-feather opacity-20">
+        <img src="https://api.dicebear.com/7.x/initials/svg?seed=GS&backgroundColor=ea580c" alt="Divine Icon" class="peacock-feather">
         
-        <div class="flex flex-col items-center z-20 px-4">
+        <div class="flex flex-col items-center z-20 px-6">
             <h1 class="radhe-title font-devanagari">राधे राधे</h1>
-            <p class="sub-title text-xs md:text-sm mt-4 text-center">Gita Sahayak</p>
+            <p class="sub-title text-[10px] md:text-sm mt-4 text-center">Gita Sahayak</p>
         </div>
     </div>
     
