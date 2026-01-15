@@ -141,7 +141,7 @@ const App: React.FC = () => {
   };
 
   const initWelcome = (name?: string) => {
-    const txt = `Namaste, ${name || 'dear devotee'}. I am Krishna. I am here to guide you through the wisdom of the Bhagavad Gita. What troubles your heart today?`;
+    const txt = `राधे राधे, ${name || 'dear devotee'}. I am Krishna. I am here to guide you through the wisdom of the Bhagavad Gita. What troubles your heart today?`;
     setMessages([{ id: 'init', role: 'model', text: txt, timestamp: Date.now() }]);
   };
 
