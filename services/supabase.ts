@@ -71,24 +71,21 @@ const getSafeLocalHistory = (): any[] => {
 };
 
 export const saveHistorySession = async (userId: string, session: HistorySession) => {
-  const strippedMessages = session.messages.map(({ audioData, ...rest }) => rest);
-  const sessionToStore = { ...session, messages: strippedMessages };
-
-  // 1. Update Local Storage for instant UI feedback
+  // 1. Update Local Storage first (Zero Latency)
   try {
     const local = getSafeLocalHistory();
     const filtered = local.filter((s: any) => s.id !== session.id);
-    filtered.unshift(sessionToStore);
+    filtered.unshift(session);
     localStorage.setItem('gita_history', JSON.stringify(filtered.slice(0, 30)));
   } catch (e) {
-    localStorage.setItem('gita_history', JSON.stringify([sessionToStore]));
+    console.warn("Local storage save failed", e);
   }
 
   // 2. Sync to Supabase
   const client = getSupabase();
   if (client && userId && !userId.startsWith('guest-')) {
     try {
-      // Step A: Persist Session Metadata
+      // Step A: Persist Session
       const { error: sessionError } = await client
         .from('sessions')
         .upsert({
@@ -99,8 +96,7 @@ export const saveHistorySession = async (userId: string, session: HistorySession
         });
 
       if (sessionError) {
-        console.error("Supabase Session Sync Error:", sessionError.message);
-        return;
+        throw new Error(`Session sync failed: ${sessionError.message}`);
       }
 
       // Step B: Persist Messages
@@ -119,13 +115,18 @@ export const saveHistorySession = async (userId: string, session: HistorySession
           .upsert(messagesToUpsert, { onConflict: 'id' });
 
         if (msgError) {
-          console.error("Supabase Message Sync Error:", msgError.message);
-        } else {
-          console.debug(`Successfully synced ${messagesToUpsert.length} messages.`);
+          // If audio_data column is missing, try syncing without it as a fallback
+          if (msgError.message.includes('audio_data')) {
+            console.warn("Supabase 'audio_data' column missing. Retrying without audio...");
+            const fallbackMessages = messagesToUpsert.map(({ audio_data, ...rest }) => rest);
+            await client.from('messages').upsert(fallbackMessages, { onConflict: 'id' });
+          } else {
+            console.error("Message sync error:", msgError.message);
+          }
         }
       }
     } catch (e) {
-      console.warn("Cloud sync exception:", e);
+      console.error("Cloud sync failed:", e);
     }
   }
 };
@@ -136,56 +137,49 @@ export const fetchHistorySessions = async (userId: string): Promise<HistorySessi
   const client = getSupabase();
   if (client && userId && !userId.startsWith('guest-')) {
     try {
-      // Explicitly request the relationship to ensure Supabase resolves the join
+      // Fetch sessions with their messages
       const { data: sessions, error } = await client
         .from('sessions')
-        .select('id, title, timestamp, messages!messages_session_id_fkey(id, role, text, audio_data, timestamp)')
+        .select(`
+          id, 
+          title, 
+          timestamp, 
+          messages (id, role, text, audio_data, timestamp)
+        `)
         .eq('user_id', userId)
         .order('timestamp', { ascending: false });
 
-      // Fallback if the specific FK naming is different in their DB
       if (error) {
-        console.debug("FK specific join failed, trying generic join...");
-        const { data: retryData, error: retryError } = await client
-          .from('sessions')
-          .select('id, title, timestamp, messages(id, role, text, audio_data, timestamp)')
-          .eq('user_id', userId)
-          .order('timestamp', { ascending: false });
-        
-        if (retryError) {
-          console.error("Supabase Fetch Final Error:", retryError.message);
-          return localData;
-        }
-        return processSessions(retryData, localData);
+        console.error("Fetch history error:", error.message);
+        return localData;
       }
 
-      return processSessions(sessions, localData);
+      if (sessions) {
+        const remoteData: HistorySession[] = sessions.map((s: any) => ({
+          id: s.id,
+          title: s.title,
+          timestamp: Number(s.timestamp),
+          messages: (s.messages || []).map((m: any) => ({
+             id: m.id,
+             role: m.role,
+             text: m.text,
+             audioData: m.audio_data,
+             timestamp: Number(m.timestamp)
+          })).sort((a: any, b: any) => a.timestamp - b.timestamp)
+        }));
+        
+        // Merge local and remote, favoring remote for existing IDs
+        const merged = [...remoteData];
+        localData.forEach((ls: any) => {
+          if (!merged.find(rs => rs.id === ls.id)) merged.push(ls);
+        });
+        return merged.sort((a, b) => b.timestamp - a.timestamp);
+      }
     } catch (e) {
-      console.error("Supabase connection failed:", e);
+      console.error("Supabase fetch exception:", e);
     }
   }
   return localData;
-};
-
-const processSessions = (sessions: any[], localData: any[]): HistorySession[] => {
-  const remoteData = sessions.map((s: any) => ({
-    id: s.id,
-    title: s.title,
-    timestamp: Number(s.timestamp),
-    messages: (s.messages || []).map((m: any) => ({
-       id: m.id,
-       role: m.role,
-       text: m.text,
-       audioData: m.audio_data,
-       timestamp: m.timestamp
-    })).sort((a: any, b: any) => a.timestamp - b.timestamp)
-  }));
-  
-  const merged = [...remoteData];
-  localData.forEach((ls: any) => {
-    if (!merged.find(rs => rs.id === ls.id)) merged.push(ls);
-  });
-  return merged.sort((a, b) => b.timestamp - a.timestamp);
 };
 
 export const deleteHistorySession = async (userId: string, id: string) => {
@@ -197,6 +191,6 @@ export const deleteHistorySession = async (userId: string, id: string) => {
   const client = getSupabase();
   if (client && userId && !userId.startsWith('guest-')) {
     const { error } = await client.from('sessions').delete().eq('id', id);
-    if (error) console.error("Supabase Delete Error:", error.message);
+    if (error) console.error("Delete session error:", error.message);
   }
 };
