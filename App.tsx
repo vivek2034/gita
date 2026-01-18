@@ -19,8 +19,6 @@ import {
   Volume2, Compass, CheckCircle2, Check
 } from 'lucide-react';
 
-const generateId = () => Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
-
 const App: React.FC = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [user, setUser] = useState<any | null>(null);
@@ -71,6 +69,7 @@ const App: React.FC = () => {
         
         if (initialSession?.user) {
           await handleUserUpdate(initialSession.user);
+          if (window.location.hash) window.history.replaceState(null, '', window.location.pathname);
         } else if (!window.location.hash.includes('access_token')) {
           await handleGuestMode();
         }
@@ -78,6 +77,7 @@ const App: React.FC = () => {
         const { data: { subscription } } = client.auth.onAuthStateChange(async (event, session) => {
           if (session?.user) {
             await handleUserUpdate(session.user);
+            if (window.location.hash) window.history.replaceState(null, '', window.location.pathname);
           } else if (event === 'SIGNED_OUT') {
             await handleGuestMode();
           }
@@ -142,7 +142,7 @@ const App: React.FC = () => {
 
   const initWelcome = (name?: string) => {
     const txt = `Namaste, ${name || 'dear devotee'}. I am Krishna. I am here to guide you through the wisdom of the Bhagavad Gita. What troubles your heart today?`;
-    setMessages([{ id: generateId(), role: 'model', text: txt, timestamp: Date.now() }]);
+    setMessages([{ id: 'init', role: 'model', text: txt, timestamp: Date.now() }]);
   };
 
   const toggleListening = () => {
@@ -278,7 +278,7 @@ const App: React.FC = () => {
     setIsGenerating(true);
     setErrorMessage(null);
     setInput('');
-    const userMsg: Message = { id: generateId(), role: 'user', text: text.trim(), timestamp: Date.now() };
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', text: text.trim(), timestamp: Date.now() };
     const updated = [...messages, userMsg];
     setMessages(updated);
     setStatus(AppState.THINKING);
@@ -289,7 +289,7 @@ const App: React.FC = () => {
         parts: [{ text: m.text }] 
       }));
 
-      const botMsgId = generateId();
+      const botMsgId = (Date.now() + 1).toString();
       let botText = "";
       setMessages(prev => [...prev, { id: botMsgId, role: 'model', text: "", timestamp: Date.now() }]);
 
@@ -301,26 +301,17 @@ const App: React.FC = () => {
       }
 
       setStatus(AppState.IDLE);
-      const botMsg: Message = { id: botMsgId, role: 'model', text: botText, timestamp: Date.now() };
-      const finalMessages = [...updated, botMsg];
-      
+      const finalMessages: Message[] = [...updated, { id: botMsgId, role: 'model', text: botText, timestamp: Date.now() }];
       const uid = user?.uid || "guest-user";
-      const sid = activeSessionId || generateId();
-      
+      const sid = activeSessionId || Math.random().toString(36).substr(2, 9);
       const session: HistorySession = {
         id: sid,
-        title: text.trim().substring(0, 30) + (text.trim().length > 30 ? "..." : ""),
+        title: text.trim().substring(0, 30) + "...",
         messages: finalMessages,
         timestamp: Date.now()
       };
-      
-      // Update UI state immediately
-      setActiveSessionId(sid);
-      
-      // Persist (Sync)
       await saveHistorySession(uid, session);
-      
-      // Refresh sidebar
+      setActiveSessionId(sid);
       const freshSessions = await fetchHistorySessions(uid);
       setHistorySessions(freshSessions);
     } catch (e: any) {
@@ -333,15 +324,13 @@ const App: React.FC = () => {
   };
 
   const renderText = (text: string) => {
-    if (!text) return null;
     try {
       const parts = text.split(/\[SHLOKA\]|\[\/SHLOKA\]/);
       return parts.map((p, i) => {
-        if (!p.trim()) return null;
         if (i % 2 === 1) {
           return (
             <div key={i} className="my-3 md:my-6 p-4 md:p-8 border-l-4 border-amber-900 bg-white/40 rounded-r-2xl text-center shadow-inner relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-2 opacity-10"><Sparkles className="w-6 h-6 md:w-8 md:h-8" /></div>
+               <div className="absolute top-0 right-0 p-2 opacity-10"><img src="https://github.com/vivek2034/images/blob/main/Vibrant%20peacock%20feather%20details.png?raw=true" className="w-6 h-6 md:w-8 md:h-8" /></div>
                <p className="font-devanagari text-base md:text-2xl text-amber-900 leading-relaxed font-bold">{p.trim()}</p>
             </div>
           );
@@ -441,7 +430,7 @@ const App: React.FC = () => {
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mt-8 md:mt-12">
                  {SUGGESTED_TOPICS.map(t => (
                    <button key={t} onClick={() => handleSend(t)} className="p-4 md:p-6 text-left bg-white/40 hover:bg-amber-900/5 border border-amber-900/10 rounded-2xl md:rounded-3xl transition-all shadow-sm hover:shadow-md active:scale-[0.98]">
-                     <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-amber-700 mb-2 md:mb-3" />
+                     <img src="https://github.com/vivek2034/images/blob/main/Vibrant%20peacock%20feather%20details.png?raw=true" alt="Topic Icon" className="w-6 h-6 md:w-8 md:h-8 mb-3 md:mb-4" />
                      <p className="text-[13px] md:text-sm font-bold text-amber-900 leading-snug">{t}</p>
                    </button>
                  ))}
