@@ -19,6 +19,8 @@ import {
   Volume2, Compass, CheckCircle2, Check
 } from 'lucide-react';
 
+const generateId = () => Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+
 const App: React.FC = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [user, setUser] = useState<any | null>(null);
@@ -69,7 +71,6 @@ const App: React.FC = () => {
         
         if (initialSession?.user) {
           await handleUserUpdate(initialSession.user);
-          if (window.location.hash) window.history.replaceState(null, '', window.location.pathname);
         } else if (!window.location.hash.includes('access_token')) {
           await handleGuestMode();
         }
@@ -77,7 +78,6 @@ const App: React.FC = () => {
         const { data: { subscription } } = client.auth.onAuthStateChange(async (event, session) => {
           if (session?.user) {
             await handleUserUpdate(session.user);
-            if (window.location.hash) window.history.replaceState(null, '', window.location.pathname);
           } else if (event === 'SIGNED_OUT') {
             await handleGuestMode();
           }
@@ -142,7 +142,8 @@ const App: React.FC = () => {
 
   const initWelcome = (name?: string) => {
     const txt = `Namaste, ${name || 'dear devotee'}. I am Krishna. I am here to guide you through the wisdom of the Bhagavad Gita. What troubles your heart today?`;
-    setMessages([{ id: 'init', role: 'model', text: txt, timestamp: Date.now() }]);
+    // CRITICAL: ID must be unique per session to avoid SQL constraint violations
+    setMessages([{ id: generateId(), role: 'model', text: txt, timestamp: Date.now() }]);
   };
 
   const toggleListening = () => {
@@ -278,7 +279,7 @@ const App: React.FC = () => {
     setIsGenerating(true);
     setErrorMessage(null);
     setInput('');
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', text: text.trim(), timestamp: Date.now() };
+    const userMsg: Message = { id: generateId(), role: 'user', text: text.trim(), timestamp: Date.now() };
     const updated = [...messages, userMsg];
     setMessages(updated);
     setStatus(AppState.THINKING);
@@ -289,7 +290,7 @@ const App: React.FC = () => {
         parts: [{ text: m.text }] 
       }));
 
-      const botMsgId = (Date.now() + 1).toString();
+      const botMsgId = generateId();
       let botText = "";
       setMessages(prev => [...prev, { id: botMsgId, role: 'model', text: "", timestamp: Date.now() }]);
 
@@ -303,7 +304,9 @@ const App: React.FC = () => {
       setStatus(AppState.IDLE);
       const finalMessages: Message[] = [...updated, { id: botMsgId, role: 'model', text: botText, timestamp: Date.now() }];
       const uid = user?.uid || "guest-user";
-      const sid = activeSessionId || Math.random().toString(36).substr(2, 9);
+      
+      // Ensure we have a persistent session ID
+      const sid = activeSessionId || generateId();
       const session: HistorySession = {
         id: sid,
         title: text.trim().substring(0, 30) + "...",
@@ -311,7 +314,6 @@ const App: React.FC = () => {
         timestamp: Date.now()
       };
       
-      // Persist to local and cloud
       await saveHistorySession(uid, session);
       
       setActiveSessionId(sid);
