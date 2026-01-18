@@ -99,7 +99,7 @@ export const saveHistorySession = async (userId: string, session: HistorySession
         });
 
       if (sessionError) {
-        console.error("Supabase Session Error:", sessionError.message);
+        console.error("Supabase Session Sync Error:", sessionError.message);
         return;
       }
 
@@ -121,7 +121,7 @@ export const saveHistorySession = async (userId: string, session: HistorySession
         if (msgError) {
           console.error("Supabase Message Sync Error:", msgError.message);
         } else {
-          console.debug(`Synced ${messagesToUpsert.length} messages to cloud.`);
+          console.debug(`Successfully synced ${messagesToUpsert.length} messages.`);
         }
       }
     } catch (e) {
@@ -136,45 +136,56 @@ export const fetchHistorySessions = async (userId: string): Promise<HistorySessi
   const client = getSupabase();
   if (client && userId && !userId.startsWith('guest-')) {
     try {
+      // Explicitly request the relationship to ensure Supabase resolves the join
       const { data: sessions, error } = await client
         .from('sessions')
-        .select(`
-          id, 
-          title, 
-          timestamp, 
-          messages (id, role, text, audio_data, timestamp)
-        `)
+        .select('id, title, timestamp, messages!messages_session_id_fkey(id, role, text, audio_data, timestamp)')
         .eq('user_id', userId)
         .order('timestamp', { ascending: false });
 
+      // Fallback if the specific FK naming is different in their DB
       if (error) {
-        console.error("Supabase Fetch Error:", error.message);
-      } else if (sessions) {
-        const remoteData = sessions.map((s: any) => ({
-          id: s.id,
-          title: s.title,
-          timestamp: Number(s.timestamp),
-          messages: (s.messages || []).map((m: any) => ({
-             id: m.id,
-             role: m.role,
-             text: m.text,
-             audioData: m.audio_data,
-             timestamp: m.timestamp
-          })).sort((a: any, b: any) => a.timestamp - b.timestamp)
-        }));
+        console.debug("FK specific join failed, trying generic join...");
+        const { data: retryData, error: retryError } = await client
+          .from('sessions')
+          .select('id, title, timestamp, messages(id, role, text, audio_data, timestamp)')
+          .eq('user_id', userId)
+          .order('timestamp', { ascending: false });
         
-        // Merge strategy: Remote is source of truth, but keep local-only sessions if any
-        const merged = [...remoteData];
-        localData.forEach((ls: any) => {
-          if (!merged.find(rs => rs.id === ls.id)) merged.push(ls);
-        });
-        return merged.sort((a, b) => b.timestamp - a.timestamp);
+        if (retryError) {
+          console.error("Supabase Fetch Final Error:", retryError.message);
+          return localData;
+        }
+        return processSessions(retryData, localData);
       }
+
+      return processSessions(sessions, localData);
     } catch (e) {
       console.error("Supabase connection failed:", e);
     }
   }
   return localData;
+};
+
+const processSessions = (sessions: any[], localData: any[]): HistorySession[] => {
+  const remoteData = sessions.map((s: any) => ({
+    id: s.id,
+    title: s.title,
+    timestamp: Number(s.timestamp),
+    messages: (s.messages || []).map((m: any) => ({
+       id: m.id,
+       role: m.role,
+       text: m.text,
+       audioData: m.audio_data,
+       timestamp: m.timestamp
+    })).sort((a: any, b: any) => a.timestamp - b.timestamp)
+  }));
+  
+  const merged = [...remoteData];
+  localData.forEach((ls: any) => {
+    if (!merged.find(rs => rs.id === ls.id)) merged.push(ls);
+  });
+  return merged.sort((a, b) => b.timestamp - a.timestamp);
 };
 
 export const deleteHistorySession = async (userId: string, id: string) => {
