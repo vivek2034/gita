@@ -103,7 +103,7 @@ export const saveHistorySession = async (userId: string, session: HistorySession
           session_id: session.id,
           role: m.role,
           text: m.text,
-          audio_data: m.audioData || null,
+          
           timestamp: m.timestamp
         })));
       }
