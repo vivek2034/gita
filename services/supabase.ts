@@ -71,21 +71,22 @@ const getSafeLocalHistory = (): any[] => {
 };
 
 export const saveHistorySession = async (userId: string, session: HistorySession) => {
-  // 1. Update Local Storage first (Zero Latency)
+  const strippedMessages = session.messages.map(({ audioData, ...rest }) => rest);
+  const sessionToStore = { ...session, messages: strippedMessages };
+
   try {
     const local = getSafeLocalHistory();
     const filtered = local.filter((s: any) => s.id !== session.id);
-    filtered.unshift(session);
+    filtered.unshift(sessionToStore);
     localStorage.setItem('gita_history', JSON.stringify(filtered.slice(0, 30)));
   } catch (e) {
-    console.warn("Local storage save failed", e);
+    console.warn("Storage error, clearing space...", e);
+    localStorage.setItem('gita_history', JSON.stringify([sessionToStore]));
   }
 
-  // 2. Sync to Supabase
   const client = getSupabase();
   if (client && userId && !userId.startsWith('guest-')) {
     try {
-      // Step A: Persist Session
       const { error: sessionError } = await client
         .from('sessions')
         .upsert({
@@ -95,38 +96,19 @@ export const saveHistorySession = async (userId: string, session: HistorySession
           timestamp: session.timestamp
         });
 
-      if (sessionError) {
-        throw new Error(`Session sync failed: ${sessionError.message}`);
-      }
-
-      // Step B: Persist Messages
-      if (session.messages && session.messages.length > 0) {
-        const messagesToUpsert = session.messages.map(m => ({
+      if (!sessionError) {
+        await client.from('messages').delete().eq('session_id', session.id);
+        await client.from('messages').insert(session.messages.map(m => ({
           id: m.id,
           session_id: session.id,
           role: m.role,
           text: m.text,
           audio_data: m.audioData || null,
           timestamp: m.timestamp
-        }));
-
-        const { error: msgError } = await client
-          .from('messages')
-          .upsert(messagesToUpsert, { onConflict: 'id' });
-
-        if (msgError) {
-          // If audio_data column is missing, try syncing without it as a fallback
-          if (msgError.message.includes('audio_data')) {
-            console.warn("Supabase 'audio_data' column missing. Retrying without audio...");
-            const fallbackMessages = messagesToUpsert.map(({ audio_data, ...rest }) => rest);
-            await client.from('messages').upsert(fallbackMessages, { onConflict: 'id' });
-          } else {
-            console.error("Message sync error:", msgError.message);
-          }
-        }
+        })));
       }
     } catch (e) {
-      console.error("Cloud sync failed:", e);
+      console.warn("Cloud sync failed", e);
     }
   }
 };
@@ -137,7 +119,6 @@ export const fetchHistorySessions = async (userId: string): Promise<HistorySessi
   const client = getSupabase();
   if (client && userId && !userId.startsWith('guest-')) {
     try {
-      // Fetch sessions with their messages
       const { data: sessions, error } = await client
         .from('sessions')
         .select(`
@@ -149,13 +130,8 @@ export const fetchHistorySessions = async (userId: string): Promise<HistorySessi
         .eq('user_id', userId)
         .order('timestamp', { ascending: false });
 
-      if (error) {
-        console.error("Fetch history error:", error.message);
-        return localData;
-      }
-
-      if (sessions) {
-        const remoteData: HistorySession[] = sessions.map((s: any) => ({
+      if (!error && sessions) {
+        const remoteData = sessions.map((s: any) => ({
           id: s.id,
           title: s.title,
           timestamp: Number(s.timestamp),
@@ -164,19 +140,20 @@ export const fetchHistorySessions = async (userId: string): Promise<HistorySessi
              role: m.role,
              text: m.text,
              audioData: m.audio_data,
-             timestamp: Number(m.timestamp)
+             timestamp: m.timestamp
           })).sort((a: any, b: any) => a.timestamp - b.timestamp)
         }));
         
-        // Merge local and remote, favoring remote for existing IDs
         const merged = [...remoteData];
         localData.forEach((ls: any) => {
-          if (!merged.find(rs => rs.id === ls.id)) merged.push(ls);
+          if (!merged.find(rs => rs.id === ls.id)) {
+            merged.push(ls);
+          }
         });
         return merged.sort((a, b) => b.timestamp - a.timestamp);
       }
     } catch (e) {
-      console.error("Supabase fetch exception:", e);
+      console.error("Cloud fetch failed", e);
     }
   }
   return localData;
@@ -190,7 +167,6 @@ export const deleteHistorySession = async (userId: string, id: string) => {
 
   const client = getSupabase();
   if (client && userId && !userId.startsWith('guest-')) {
-    const { error } = await client.from('sessions').delete().eq('id', id);
-    if (error) console.error("Delete session error:", error.message);
+    await client.from('sessions').delete().eq('id', id);
   }
 };
