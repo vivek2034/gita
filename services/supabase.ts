@@ -74,6 +74,7 @@ export const saveHistorySession = async (userId: string, session: HistorySession
   const strippedMessages = session.messages.map(({ audioData, ...rest }) => rest);
   const sessionToStore = { ...session, messages: strippedMessages };
 
+  // Save to Local Storage first for immediate feedback
   try {
     const local = getSafeLocalHistory();
     const filtered = local.filter((s: any) => s.id !== session.id);
@@ -84,9 +85,11 @@ export const saveHistorySession = async (userId: string, session: HistorySession
     localStorage.setItem('gita_history', JSON.stringify([sessionToStore]));
   }
 
+  // Sync to Supabase
   const client = getSupabase();
   if (client && userId && !userId.startsWith('guest-')) {
     try {
+      // 1. Upsert the session first
       const { error: sessionError } = await client
         .from('sessions')
         .upsert({
@@ -96,19 +99,33 @@ export const saveHistorySession = async (userId: string, session: HistorySession
           timestamp: session.timestamp
         });
 
-      if (!sessionError) {
-        await client.from('messages').delete().eq('session_id', session.id);
-        await client.from('messages').insert(session.messages.map(m => ({
-          id: m.id,
-          session_id: session.id,
-          role: m.role,
-          text: m.text,
-          
-          timestamp: m.timestamp
-        })));
+      if (sessionError) {
+        console.error("Error saving session to Supabase:", sessionError.message);
+        return;
+      }
+
+      // 2. Map messages to table format
+      const messagesToUpsert = session.messages.map(m => ({
+        id: m.id,
+        session_id: session.id,
+        role: m.role,
+        text: m.text,
+        audio_data: m.audioData || null,
+        timestamp: m.timestamp
+      }));
+
+      // 3. Upsert messages using onConflict to handle existing ones
+      // This is much safer than delete/insert which can fail due to RLS policies
+      const { error: msgError } = await client
+        .from('messages')
+        .upsert(messagesToUpsert, { onConflict: 'id' });
+
+      if (msgError) {
+        console.error("Error saving messages to Supabase:", msgError.message);
+        console.info("TIP: Ensure the 'messages' table exists and has RLS policies enabled.");
       }
     } catch (e) {
-      console.warn("Cloud sync failed", e);
+      console.warn("Cloud sync failed with an unexpected error:", e);
     }
   }
 };
@@ -130,7 +147,9 @@ export const fetchHistorySessions = async (userId: string): Promise<HistorySessi
         .eq('user_id', userId)
         .order('timestamp', { ascending: false });
 
-      if (!error && sessions) {
+      if (error) {
+        console.error("Error fetching sessions from Supabase:", error.message);
+      } else if (sessions) {
         const remoteData = sessions.map((s: any) => ({
           id: s.id,
           title: s.title,
@@ -144,6 +163,7 @@ export const fetchHistorySessions = async (userId: string): Promise<HistorySessi
           })).sort((a: any, b: any) => a.timestamp - b.timestamp)
         }));
         
+        // Merge local and remote, prioritizing remote
         const merged = [...remoteData];
         localData.forEach((ls: any) => {
           if (!merged.find(rs => rs.id === ls.id)) {
@@ -167,6 +187,8 @@ export const deleteHistorySession = async (userId: string, id: string) => {
 
   const client = getSupabase();
   if (client && userId && !userId.startsWith('guest-')) {
-    await client.from('sessions').delete().eq('id', id);
+    // Note: Foreign key CASCADE will automatically delete associated messages
+    const { error } = await client.from('sessions').delete().eq('id', id);
+    if (error) console.error("Error deleting session from Supabase:", error.message);
   }
 };
