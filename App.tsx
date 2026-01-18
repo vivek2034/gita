@@ -142,7 +142,6 @@ const App: React.FC = () => {
 
   const initWelcome = (name?: string) => {
     const txt = `Namaste, ${name || 'dear devotee'}. I am Krishna. I am here to guide you through the wisdom of the Bhagavad Gita. What troubles your heart today?`;
-    // CRITICAL: ID must be unique per session to avoid SQL constraint violations
     setMessages([{ id: generateId(), role: 'model', text: txt, timestamp: Date.now() }]);
   };
 
@@ -302,21 +301,26 @@ const App: React.FC = () => {
       }
 
       setStatus(AppState.IDLE);
-      const finalMessages: Message[] = [...updated, { id: botMsgId, role: 'model', text: botText, timestamp: Date.now() }];
-      const uid = user?.uid || "guest-user";
+      const botMsg: Message = { id: botMsgId, role: 'model', text: botText, timestamp: Date.now() };
+      const finalMessages = [...updated, botMsg];
       
-      // Ensure we have a persistent session ID
+      const uid = user?.uid || "guest-user";
       const sid = activeSessionId || generateId();
+      
       const session: HistorySession = {
         id: sid,
-        title: text.trim().substring(0, 30) + "...",
+        title: text.trim().substring(0, 30) + (text.trim().length > 30 ? "..." : ""),
         messages: finalMessages,
         timestamp: Date.now()
       };
       
+      // Update UI state immediately
+      setActiveSessionId(sid);
+      
+      // Persist (Sync)
       await saveHistorySession(uid, session);
       
-      setActiveSessionId(sid);
+      // Refresh sidebar
       const freshSessions = await fetchHistorySessions(uid);
       setHistorySessions(freshSessions);
     } catch (e: any) {
@@ -329,9 +333,11 @@ const App: React.FC = () => {
   };
 
   const renderText = (text: string) => {
+    if (!text) return null;
     try {
       const parts = text.split(/\[SHLOKA\]|\[\/SHLOKA\]/);
       return parts.map((p, i) => {
+        if (!p.trim()) return null;
         if (i % 2 === 1) {
           return (
             <div key={i} className="my-3 md:my-6 p-4 md:p-8 border-l-4 border-amber-900 bg-white/40 rounded-r-2xl text-center shadow-inner relative overflow-hidden">
